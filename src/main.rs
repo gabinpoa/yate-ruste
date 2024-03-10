@@ -101,7 +101,6 @@ fn render_line(
 fn render_canvas(canvas: &mut WindowCanvas, color: Color) {
     canvas.set_draw_color(color);
     canvas.clear();
-    canvas.present();
 }
 
 fn main() {
@@ -109,8 +108,6 @@ fn main() {
     let window = get_window(&sdl_context, TITLE, WindowMode::Default);
     let mut canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
-
-    render_canvas(&mut canvas, Color::from((20, 5, 0)));
 
     let sdl2_tff_context = sdl2::ttf::init().unwrap();
     let font_path = Path::new("src/JetBrainsMono-Regular.ttf");
@@ -124,6 +121,9 @@ fn main() {
         line: 0,
         position: 0,
     };
+    let mut cursor_shown = true;
+    let mut repetition = 0u8;
+    let fps = 60u8;
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
@@ -137,12 +137,26 @@ fn main() {
                 _ => {}
             }
         }
+        render_canvas(&mut canvas, Color::from((20, 5, 0)));
 
         text_renderer(&text, &mut canvas).unwrap();
-        render_cursor(&mut canvas, &cursor, &font);
+
+        if repetition != fps / 2u8 {
+            repetition = repetition + 1u8;
+            if cursor_shown {
+                render_cursor(&mut canvas, &cursor, &font);
+            };
+        } else if cursor_shown {
+            render_cursor(&mut canvas, &cursor, &font);
+            repetition = 0u8;
+            cursor_shown = false;
+        } else {
+            repetition = 0u8;
+            cursor_shown = true;
+        }
 
         canvas.present();
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 24));
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / fps as u32));
     }
 }
 
