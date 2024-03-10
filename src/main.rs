@@ -60,6 +60,10 @@ fn render_line(
     x_axis: i32,
     y_axis: i32,
 ) -> Result<(), String> {
+    if line.len() == 0usize {
+        return Ok(());
+    }
+
     let line_surface = get_string_surface(font, line);
 
     let (width, height) = (line_surface.width(), line_surface.height());
@@ -94,7 +98,7 @@ fn main() {
     let text_renderer =
         get_text_renderer(&texture_creator, &sdl2_tff_context, font_path, font_size);
 
-    let text: Vec<&str> = vec!["Hey guys", "I am the second line"];
+    let text: Vec<&str> = vec!["Hey guys", "", "I am the second line"];
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
@@ -108,10 +112,6 @@ fn main() {
                 } => break 'running,
                 _ => {}
             }
-        }
-
-        if text.len() == 0usize || text.get(0).unwrap().len() == 0usize {
-            break 'running;
         }
 
         text_renderer(&text, &mut canvas).unwrap();
