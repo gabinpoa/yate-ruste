@@ -8,7 +8,7 @@ use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::surface::Surface;
-use sdl2::ttf::{Font, Sdl2TtfContext};
+use sdl2::ttf::Font;
 use sdl2::video::WindowContext;
 use sdl2::Sdl;
 
@@ -18,6 +18,12 @@ enum WindowMode {
     // Resizable,
     // Fullscreen,
     Default,
+}
+
+#[derive(Debug)]
+struct Cursor {
+    line: u16,
+    position: u16,
 }
 
 const TITLE: &str = "Rusteed";
@@ -39,6 +45,20 @@ fn get_window(sdl_context: &Sdl, title: &str, window_mode: WindowMode) -> sdl2::
         //   .unwrap(),
         WindowMode::Default => video_subsystem.window(title, 800, 600).build().unwrap(),
     }
+}
+
+fn render_rectangle(
+    x_axis: i32,
+    y_axis: i32,
+    width: u32,
+    height: u32,
+    canvas: &mut WindowCanvas,
+    color: Color,
+) {
+    let rectangle = Rect::new(x_axis, y_axis, width, height);
+    canvas.set_draw_color(color);
+
+    canvas.fill_rect(rectangle).unwrap();
 }
 
 fn get_string_surface(font: &Font, text: &str) -> Surface<'static> {
@@ -95,13 +115,17 @@ fn main() {
     let sdl2_tff_context = sdl2::ttf::init().unwrap();
     let font_path = Path::new("src/JetBrainsMono-Regular.ttf");
     let font_size = 14u16;
-    let text_renderer =
-        get_text_renderer(&texture_creator, &sdl2_tff_context, font_path, font_size);
+    let font = sdl2_tff_context.load_font(font_path, font_size).unwrap();
+
+    let text_renderer = get_text_renderer(&texture_creator, &font);
 
     let text: Vec<&str> = vec!["Hey guys", "", "I am the second line"];
+    let cursor = Cursor {
+        line: 0,
+        position: 0,
+    };
 
     let mut event_pump = sdl_context.event_pump().unwrap();
-
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -115,6 +139,7 @@ fn main() {
         }
 
         text_renderer(&text, &mut canvas).unwrap();
+        render_cursor(&mut canvas, &cursor, &font);
 
         canvas.present();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 24));
@@ -123,13 +148,9 @@ fn main() {
 
 fn get_text_renderer<'b>(
     texture_creator: &'b TextureCreator<WindowContext>,
-    sdl2_tff_context: &'b Sdl2TtfContext,
-    font_path: &Path,
-    font_size: u16,
+    font: &'b Font,
 ) -> impl for<'a> Fn(&Vec<&'a str>, &mut WindowCanvas) -> Result<(), String> + 'b {
-    let font = sdl2_tff_context.load_font(font_path, font_size).unwrap();
     let line_height = font.height();
-
     let text_renderer = move |text: &Vec<&str>, canvas: &mut WindowCanvas| -> Result<(), String> {
         for (i, line) in text.iter().enumerate() {
             render_line(
@@ -146,4 +167,23 @@ fn get_text_renderer<'b>(
     };
 
     text_renderer
+}
+
+fn render_cursor(canvas: &mut WindowCanvas, cursor: &Cursor, font: &Font) {
+    let line_height = font.height();
+    let letter_width = get_string_surface(font, "_").width();
+
+    let cursor_x = (cursor.position as i32 * letter_width as i32) + PADDING;
+    let cursor_y = (cursor.line as i32 * line_height as i32) + PADDING;
+
+    let color = Color::from((155u8, 230u8, 255u8));
+
+    render_rectangle(
+        cursor_x,
+        cursor_y,
+        1 as u32,
+        line_height as u32,
+        canvas,
+        color,
+    );
 }
