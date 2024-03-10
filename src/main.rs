@@ -91,8 +91,8 @@ fn main() {
     let sdl2_tff_context = sdl2::ttf::init().unwrap();
     let font_path = Path::new("src/JetBrainsMono-Regular.ttf");
     let font_size = 14u16;
-    let font = sdl2_tff_context.load_font(font_path, font_size).unwrap();
-    let line_height = font.height();
+    let text_renderer =
+        get_text_renderer(&texture_creator, &sdl2_tff_context, font_path, font_size);
 
     let text: Vec<&str> = vec!["Hey guys", "I am the second line"];
 
@@ -114,34 +114,23 @@ fn main() {
             break 'running;
         }
 
-        for (i, line) in text.iter().enumerate() {
-            render_line(
-                &mut canvas,
-                &texture_creator,
-                line,
-                &font,
-                PADDING,
-                PADDING + (line_height * i as i32),
-            )
-            .unwrap();
-        }
+        text_renderer(&text, &mut canvas).unwrap();
 
         canvas.present();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 24));
     }
 }
 
-fn _get_text_renderer<'b>(
-    canvas: &'b mut WindowCanvas,
+fn get_text_renderer<'b>(
+    texture_creator: &'b TextureCreator<WindowContext>,
     sdl2_tff_context: &'b Sdl2TtfContext,
     font_path: &Path,
     font_size: u16,
-) -> impl for<'a> FnOnce(&Vec<&'a str>) -> Result<(), String> + 'b {
-    let texture_creator = canvas.texture_creator();
+) -> impl for<'a> Fn(&Vec<&'a str>, &mut WindowCanvas) -> Result<(), String> + 'b {
     let font = sdl2_tff_context.load_font(font_path, font_size).unwrap();
     let line_height = font.height();
 
-    let text_renderer = move |text: &Vec<&str>| -> Result<(), String> {
+    let text_renderer = move |text: &Vec<&str>, canvas: &mut WindowCanvas| -> Result<(), String> {
         for (i, line) in text.iter().enumerate() {
             render_line(
                 canvas,
