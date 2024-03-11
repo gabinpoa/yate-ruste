@@ -1,5 +1,6 @@
 use core::panic;
 use std::path::Path;
+use std::str::FromStr;
 use std::time::Duration;
 
 use sdl2::event::Event;
@@ -22,8 +23,8 @@ enum WindowMode {
 
 #[derive(Debug)]
 struct Cursor {
-    line: u16,
-    position: u16,
+    line: u32,
+    position: u32,
 }
 
 const TITLE: &str = "Rusteed";
@@ -61,7 +62,7 @@ fn render_rectangle(
     canvas.fill_rect(rectangle).unwrap();
 }
 
-fn get_string_surface(font: &Font, text: &str) -> Surface<'static> {
+fn string_surface(font: &Font, text: &str) -> Surface<'static> {
     let partial_render = font.render(&text);
 
     let surface = match partial_render.solid(Color::WHITE) {
@@ -84,7 +85,7 @@ fn render_line(
         return Ok(());
     }
 
-    let line_surface = get_string_surface(font, line);
+    let line_surface = string_surface(font, line);
 
     let (width, height) = (line_surface.width(), line_surface.height());
 
@@ -116,8 +117,8 @@ fn main() {
 
     let text_renderer = get_text_renderer(&texture_creator, &font);
 
-    let text: Vec<&str> = vec!["Hey guys", "", "I am the second line"];
-    let cursor = Cursor {
+    let mut text: Vec<&str> = vec!["Hey guys", "", "I am the second line"];
+    let mut cursor = Cursor {
         line: 0,
         position: 0,
     };
@@ -134,6 +135,22 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => break 'running,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Up),
+                    ..
+                } => set_cursor_line(&mut cursor, &text, -1),
+                Event::KeyDown {
+                    keycode: Some(Keycode::Down),
+                    ..
+                } => set_cursor_line(&mut cursor, &text, 1),
+                Event::KeyDown {
+                    keycode: Some(Keycode::Left),
+                    ..
+                } => set_cursor_position(&mut cursor, &text, -1),
+                Event::KeyDown {
+                    keycode: Some(Keycode::Right),
+                    ..
+                } => set_cursor_position(&mut cursor, &text, 1),
                 _ => {}
             }
         }
@@ -146,6 +163,9 @@ fn main() {
             if cursor_shown {
                 render_cursor(&mut canvas, &cursor, &font);
             };
+            if text.len() < 15 {
+                text.push("Another line"); // Just for test
+            }
         } else if cursor_shown {
             render_cursor(&mut canvas, &cursor, &font);
             repetition = 0u8;
@@ -185,10 +205,10 @@ fn get_text_renderer<'b>(
 
 fn render_cursor(canvas: &mut WindowCanvas, cursor: &Cursor, font: &Font) {
     let line_height = font.height();
-    let letter_width = get_string_surface(font, "_").width();
+    let letter_width = string_surface(font, "_").width();
 
-    let cursor_x = (cursor.position as i32 * letter_width as i32) + PADDING;
-    let cursor_y = (cursor.line as i32 * line_height as i32) + PADDING;
+    let (cursor_x, cursor_y) =
+        get_cursor_axis(line_height, letter_width, cursor.line, cursor.position);
 
     let color = Color::from((155u8, 230u8, 255u8));
 
@@ -200,4 +220,68 @@ fn render_cursor(canvas: &mut WindowCanvas, cursor: &Cursor, font: &Font) {
         canvas,
         color,
     );
+}
+
+fn get_cursor_axis(line_height: i32, letter_width: u32, line: u32, position: u32) -> (i32, i32) {
+    let cursor_x = (position as i32 * letter_width as i32) + PADDING;
+    let cursor_y = (line as i32 * line_height as i32) + PADDING;
+
+    (cursor_x, cursor_y)
+}
+
+fn set_cursor_position(cursor: &mut Cursor, text: &Vec<&str>, offset: i8) {
+    let (line, position) = {
+        let new_position = cursor.position as i32 + offset as i32;
+        let exceeds_line = new_position as usize > line_length(cursor.line as usize, text).unwrap();
+        let next_line_exists = match line_length(cursor.line as usize + 1, text) {
+            Ok(_) => true,
+            Err(_) => false,
+        };
+
+        if (cursor.line == 0 && new_position < 0) || (!next_line_exists && exceeds_line) {
+            (cursor.line, cursor.position)
+        } else if new_position < 0 {
+            let new_line = cursor.line - 1 as u32;
+            (
+                new_line,
+                line_length(new_line as usize, text).unwrap() as u32,
+            )
+        } else if exceeds_line && next_line_exists {
+            (cursor.line + 1, 0)
+        } else {
+            (cursor.line, new_position as u32)
+        }
+    };
+
+    cursor.line = line;
+    cursor.position = position
+}
+
+fn set_cursor_line(cursor: &mut Cursor, text: &Vec<&str>, offset: i8) {
+    let (line, position) = {
+        let new_line = cursor.line as i32 + offset as i32;
+        let new_line_length = line_length(new_line as usize, text).ok();
+
+        if !new_line_length.is_some() {
+            (cursor.line, cursor.position)
+        } else if cursor.position as usize > new_line_length.unwrap() {
+            (new_line as u32, new_line_length.unwrap() as u32)
+        } else {
+            (new_line as u32, cursor.position)
+        }
+    };
+
+    cursor.position = position;
+    cursor.line = line;
+}
+
+fn line_length(line_index: usize, text: &Vec<&str>) -> Result<usize, String> {
+    let line = match text.get(line_index) {
+        Some(line_text) => Ok(str::len(line_text)),
+        None => Err(String::from_str(
+            "Error in get_line_text_length: Line index does not return anything",
+        )
+        .unwrap()),
+    };
+    line
 }
