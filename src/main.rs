@@ -117,7 +117,11 @@ fn main() {
 
     let text_renderer = get_text_renderer(&texture_creator, &font);
 
-    let mut text: Vec<&str> = vec!["Hey guys", "", "I am the second line"];
+    let mut text: Vec<String> = vec![
+        String::from("Hey guys"),
+        String::from(""),
+        String::from("I am the second line"),
+    ];
     let mut cursor = Cursor {
         line: 0,
         position: 0,
@@ -151,6 +155,14 @@ fn main() {
                     keycode: Some(Keycode::Right),
                     ..
                 } => set_cursor_position(&mut cursor, &text, 1),
+                Event::KeyDown {
+                    keycode: Some(Keycode::End),
+                    ..
+                } => move_to_end(&mut cursor, &text),
+                Event::KeyDown {
+                    keycode: Some(Keycode::Home),
+                    ..
+                } => move_to_start(&mut cursor),
                 _ => {}
             }
         }
@@ -164,7 +176,7 @@ fn main() {
                 render_cursor(&mut canvas, &cursor, &font);
             };
             if text.len() < 15 {
-                text.push("Another line"); // Just for test
+                text.push("Another line".to_string()); // Just for test
             }
         } else if cursor_shown {
             render_cursor(&mut canvas, &cursor, &font);
@@ -183,24 +195,33 @@ fn main() {
 fn get_text_renderer<'b>(
     texture_creator: &'b TextureCreator<WindowContext>,
     font: &'b Font,
-) -> impl for<'a> Fn(&Vec<&'a str>, &mut WindowCanvas) -> Result<(), String> + 'b {
+) -> impl for<'a> Fn(&Vec<String>, &mut WindowCanvas) -> Result<(), String> + 'b {
     let line_height = font.height();
-    let text_renderer = move |text: &Vec<&str>, canvas: &mut WindowCanvas| -> Result<(), String> {
-        for (i, line) in text.iter().enumerate() {
-            render_line(
-                canvas,
-                &texture_creator,
-                line,
-                &font,
-                PADDING,
-                PADDING + (line_height * i as i32),
-            )?;
-        }
+    let text_renderer =
+        move |text: &Vec<String>, canvas: &mut WindowCanvas| -> Result<(), String> {
+            for (i, line) in text.iter().enumerate() {
+                render_line(
+                    canvas,
+                    &texture_creator,
+                    line,
+                    &font,
+                    PADDING,
+                    PADDING + (line_height * i as i32),
+                )?;
+            }
 
-        Ok(())
-    };
+            Ok(())
+        };
 
     text_renderer
+}
+
+fn move_to_end(cursor: &mut Cursor, text: &Vec<String>) {
+    cursor.position = line_length(cursor.line as usize, text).unwrap() as u32;
+}
+
+fn move_to_start(cursor: &mut Cursor) {
+    cursor.position = 0;
 }
 
 fn render_cursor(canvas: &mut WindowCanvas, cursor: &Cursor, font: &Font) {
@@ -229,18 +250,16 @@ fn get_cursor_axis(line_height: i32, letter_width: u32, line: u32, position: u32
     (cursor_x, cursor_y)
 }
 
-fn set_cursor_position(cursor: &mut Cursor, text: &Vec<&str>, offset: i8) {
+fn set_cursor_position(cursor: &mut Cursor, text: &Vec<String>, offset: i8) {
     let (line, position) = {
         let new_position = cursor.position as i32 + offset as i32;
         let exceeds_line = new_position as usize > line_length(cursor.line as usize, text).unwrap();
-        let next_line_exists = match line_length(cursor.line as usize + 1, text) {
-            Ok(_) => true,
-            Err(_) => false,
-        };
+        let next_line_exists = line_exists(text, cursor.line as usize + 1);
+        let prev_line_exists = line_exists(text, cursor.line as usize - 1);
 
-        if (cursor.line == 0 && new_position < 0) || (!next_line_exists && exceeds_line) {
+        if (!prev_line_exists && new_position < 0) || (!next_line_exists && exceeds_line) {
             (cursor.line, cursor.position)
-        } else if new_position < 0 {
+        } else if new_position < 0 && prev_line_exists {
             let new_line = cursor.line - 1 as u32;
             (
                 new_line,
@@ -257,7 +276,7 @@ fn set_cursor_position(cursor: &mut Cursor, text: &Vec<&str>, offset: i8) {
     cursor.position = position
 }
 
-fn set_cursor_line(cursor: &mut Cursor, text: &Vec<&str>, offset: i8) {
+fn set_cursor_line(cursor: &mut Cursor, text: &Vec<String>, offset: i8) {
     let (line, position) = {
         let new_line = cursor.line as i32 + offset as i32;
         let new_line_length = line_length(new_line as usize, text).ok();
@@ -275,7 +294,14 @@ fn set_cursor_line(cursor: &mut Cursor, text: &Vec<&str>, offset: i8) {
     cursor.line = line;
 }
 
-fn line_length(line_index: usize, text: &Vec<&str>) -> Result<usize, String> {
+fn line_exists(text: &Vec<String>, line_index: usize) -> bool {
+    match text.get(line_index) {
+        None => false,
+        Some(_) => true,
+    }
+}
+
+fn line_length(line_index: usize, text: &Vec<String>) -> Result<usize, String> {
     let line = match text.get(line_index) {
         Some(line_text) => Ok(str::len(line_text)),
         None => Err(String::from_str(
@@ -284,4 +310,16 @@ fn line_length(line_index: usize, text: &Vec<&str>) -> Result<usize, String> {
         .unwrap()),
     };
     line
+}
+
+fn insert_char(character: char, text: &mut Vec<String>, cursor: &mut Cursor) {
+    let old_line = &text[cursor.line as usize];
+    let new_line = insert_char_in_string(old_line.to_string(), cursor.position as usize, character);
+    text[cursor.line as usize] = new_line;
+}
+
+fn insert_char_in_string(line: String, position: usize, character: char) -> String {
+    let mut new_line = line;
+    new_line.insert(position, character);
+    new_line
 }
