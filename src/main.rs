@@ -117,7 +117,7 @@ fn main() {
 
     let text_renderer = get_text_renderer(&texture_creator, &font);
 
-    let mut text: Vec<String> = vec![
+    let mut editor_text: Vec<String> = vec![
         String::from("Hey guys"),
         String::from(""),
         String::from("I am the second line"),
@@ -142,41 +142,45 @@ fn main() {
                 Event::KeyDown {
                     keycode: Some(Keycode::Up),
                     ..
-                } => set_cursor_line(&mut cursor, &text, -1),
+                } => set_cursor_line(&mut cursor, &editor_text, -1),
                 Event::KeyDown {
                     keycode: Some(Keycode::Down),
                     ..
-                } => set_cursor_line(&mut cursor, &text, 1),
+                } => set_cursor_line(&mut cursor, &editor_text, 1),
                 Event::KeyDown {
                     keycode: Some(Keycode::Left),
                     ..
-                } => set_cursor_position(&mut cursor, &text, -1),
+                } => set_cursor_position(&mut cursor, &editor_text, -1),
                 Event::KeyDown {
                     keycode: Some(Keycode::Right),
                     ..
-                } => set_cursor_position(&mut cursor, &text, 1),
+                } => set_cursor_position(&mut cursor, &editor_text, 1),
                 Event::KeyDown {
                     keycode: Some(Keycode::End),
                     ..
-                } => move_to_end(&mut cursor, &text),
+                } => move_to_end(&mut cursor, &editor_text),
                 Event::KeyDown {
                     keycode: Some(Keycode::Home),
                     ..
                 } => move_to_start(&mut cursor),
+                Event::TextInput { text, .. } => {
+                    handle_text_input(text, &mut editor_text, &mut cursor);
+                }
                 _ => {}
             }
         }
+
         render_canvas(&mut canvas, Color::from((20, 5, 0)));
 
-        text_renderer(&text, &mut canvas).unwrap();
+        text_renderer(&editor_text, &mut canvas).unwrap();
 
         if repetition != fps / 2u8 {
             repetition = repetition + 1u8;
             if cursor_shown {
                 render_cursor(&mut canvas, &cursor, &font);
             };
-            if text.len() < 15 {
-                text.push("Another line".to_string()); // Just for test
+            if editor_text.len() < 15 {
+                editor_text.push("Another line".to_string()); // Just for test
             }
         } else if cursor_shown {
             render_cursor(&mut canvas, &cursor, &font);
@@ -255,7 +259,7 @@ fn set_cursor_position(cursor: &mut Cursor, text: &Vec<String>, offset: i8) {
         let new_position = cursor.position as i32 + offset as i32;
         let exceeds_line = new_position as usize > line_length(cursor.line as usize, text).unwrap();
         let next_line_exists = line_exists(text, cursor.line as usize + 1);
-        let prev_line_exists = line_exists(text, cursor.line as usize - 1);
+        let prev_line_exists = cursor.line > 0;
 
         if (!prev_line_exists && new_position < 0) || (!next_line_exists && exceeds_line) {
             (cursor.line, cursor.position)
@@ -312,14 +316,14 @@ fn line_length(line_index: usize, text: &Vec<String>) -> Result<usize, String> {
     line
 }
 
-fn insert_char(character: char, text: &mut Vec<String>, cursor: &mut Cursor) {
-    let old_line = &text[cursor.line as usize];
-    let new_line = insert_char_in_string(old_line.to_string(), cursor.position as usize, character);
-    text[cursor.line as usize] = new_line;
+fn handle_text_input(string_input: String, text: &mut Vec<String>, cursor: &mut Cursor) {
+    insert_str_in_text(string_input, text, cursor);
+    cursor.position = cursor.position + 1;
 }
 
-fn insert_char_in_string(line: String, position: usize, character: char) -> String {
-    let mut new_line = line;
-    new_line.insert(position, character);
-    new_line
+fn insert_str_in_text(string_input: String, text: &mut Vec<String>, cursor: &Cursor) {
+    let old_line = &text[cursor.line as usize];
+    let mut new_line = old_line.to_string();
+    new_line.insert_str(cursor.position as usize, &string_input);
+    text[cursor.line as usize] = new_line;
 }
