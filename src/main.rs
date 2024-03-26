@@ -166,6 +166,10 @@ fn main() {
                 Event::TextInput { text, .. } => {
                     handle_text_input(text, &mut editor_text, &mut cursor);
                 }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Backspace),
+                    ..
+                } => handle_backspace(&mut editor_text, &mut cursor),
                 _ => {}
             }
         }
@@ -318,12 +322,28 @@ fn line_length(line_index: usize, text: &Vec<String>) -> Result<usize, String> {
 
 fn handle_text_input(string_input: String, text: &mut Vec<String>, cursor: &mut Cursor) {
     insert_str_in_text(string_input, text, cursor);
-    cursor.position = cursor.position + 1;
+    cursor.position += 1;
 }
 
 fn insert_str_in_text(string_input: String, text: &mut Vec<String>, cursor: &Cursor) {
     let old_line = &text[cursor.line as usize];
     let mut new_line = old_line.to_string();
     new_line.insert_str(cursor.position as usize, &string_input);
+
+    text[cursor.line as usize] = new_line;
+}
+
+fn handle_backspace(text: &mut Vec<String>, cursor: &mut Cursor) {
+    if cursor.position > 0 {
+        remove_char_under_cursor(text, cursor);
+        cursor.position -= 1;
+    }
+}
+
+fn remove_char_under_cursor(text: &mut Vec<String>, cursor: &mut Cursor) {
+    let old_line = &text[cursor.line as usize];
+    let mut new_line = old_line.to_string();
+    new_line.remove(cursor.position as usize - 1);
+
     text[cursor.line as usize] = new_line;
 }
