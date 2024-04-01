@@ -170,6 +170,10 @@ fn main() {
                     keycode: Some(Keycode::Backspace),
                     ..
                 } => handle_backspace(&mut editor_text, &mut cursor),
+                Event::KeyDown {
+                    keycode: Some(Keycode::Return),
+                    ..
+                } => handle_enter(&mut editor_text, &mut cursor),
                 _ => {}
             }
         }
@@ -183,9 +187,6 @@ fn main() {
             if cursor_shown {
                 render_cursor(&mut canvas, &cursor, &font);
             };
-            if editor_text.len() < 15 {
-                editor_text.push("Another line".to_string()); // Just for test
-            }
         } else if cursor_shown {
             render_cursor(&mut canvas, &cursor, &font);
             repetition = 0u8;
@@ -333,11 +334,82 @@ fn insert_str_in_text(string_input: String, text: &mut Vec<String>, cursor: &Cur
     text[cursor.line as usize] = new_line;
 }
 
-fn handle_backspace(text: &mut Vec<String>, cursor: &mut Cursor) {
+fn handle_backspace(editor_text: &mut Vec<String>, cursor: &mut Cursor) {
     if cursor.position > 0 {
-        remove_char_under_cursor(text, cursor);
-        cursor.position -= 1;
+        remove_char_under_cursor(editor_text, cursor);
+    } else if editor_text[cursor.line as usize].is_empty() && editor_text.len() > 1 {
+        delete_line(editor_text, cursor.line as usize);
+        if cursor.line > 0 {
+            cursor.line -= 1;
+        }
+        cursor.position = line_length(cursor.line as usize, editor_text).unwrap() as u32;
+    } else if cursor.line > 0 && editor_text.len() > 1 {
+        delete_line_and_concat(editor_text, cursor);
     }
+}
+
+fn delete_line_and_concat(editor_text: &mut Vec<String>, cursor: &mut Cursor) {
+    let prev_line_index = cursor.line as usize - 1;
+    let prev_line_length = line_length(prev_line_index, editor_text).unwrap();
+    editor_text[prev_line_index] = concat_lines(
+        prev_line_index,
+        prev_line_length,
+        cursor.line as usize,
+        0,
+        editor_text,
+    );
+    delete_line(editor_text, cursor.line as usize);
+
+    cursor.line = prev_line_index as u32;
+    cursor.position = prev_line_length as u32;
+}
+
+fn handle_enter(editor_text: &mut Vec<String>, cursor: &mut Cursor) {
+    let new_line_index = cursor.line as usize + 1;
+    create_new_line(editor_text, new_line_index);
+    if cursor.position as usize != line_length(cursor.line as usize, editor_text).unwrap() {
+        let (existing_line, new_line) =
+            editor_text[cursor.line as usize].split_at(cursor.position as usize);
+        (
+            editor_text[cursor.line as usize],
+            editor_text[new_line_index],
+        ) = (existing_line.to_owned(), new_line.to_owned());
+    }
+    cursor.line = new_line_index as u32;
+    cursor.position = 0;
+}
+
+fn create_new_line(editor_text: &mut Vec<String>, new_line_index: usize) {
+    editor_text.insert(new_line_index, String::new());
+}
+
+fn concat_lines(
+    f_line: usize,
+    f_position: usize,
+    l_line: usize,
+    l_position: usize,
+    editor_text: &Vec<String>,
+) -> String {
+    let mut f_string: String;
+    let l_string: String;
+    if f_position == line_length(f_line, editor_text).unwrap() {
+        f_string = editor_text[f_line].to_owned();
+    } else {
+        f_string = editor_text[f_line].split_at(f_position).0.to_owned();
+    }
+
+    if l_position == 0 {
+        l_string = editor_text[l_line].to_owned();
+    } else {
+        l_string = editor_text[l_line].split_at(l_position).1.to_owned();
+    }
+    f_string.push_str(&l_string);
+
+    f_string
+}
+
+fn delete_line(editor_text: &mut Vec<String>, line: usize) {
+    editor_text.remove(line);
 }
 
 fn remove_char_under_cursor(text: &mut Vec<String>, cursor: &mut Cursor) {
@@ -346,4 +418,5 @@ fn remove_char_under_cursor(text: &mut Vec<String>, cursor: &mut Cursor) {
     new_line.remove(cursor.position as usize - 1);
 
     text[cursor.line as usize] = new_line;
+    cursor.position -= 1;
 }
